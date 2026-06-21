@@ -1,6 +1,6 @@
 # Session 1 Speaker Notes
 
-[Slides](https://example.com)
+[Slides](https://docs.google.com/presentation/d/1FYvPtxzgp9Z8kreNQ4ZyVJ6RvzKiU2WYXGnqfnrndk0/edit?usp=sharing)
 
 ## Slide 1
 
