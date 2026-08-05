@@ -95,20 +95,45 @@ Setup the LEDs:
 - Switch back to slides to talk about debugging and upload process
 
 ## Slide 9
+
+[//]: # (I dont like this section, skip it)
+
 On the slides:
 
-- One thing that is good to know is how we are actually interacting with the mcu
-- For an mcu, usb is very hard, so we are not actually debugging directly with usb
-- we go through the *pipeline*
-    - MCU supports a hardware protocol specifically for debugging called SWD
-    - This SWD is then routed to a debug probe, which acts as a mediator between computer and mcu connecting the usb and
-      swd busses together
-    - on the computer, openocd conencts to the debug probe connected over usb, and begins hosting a connection we can
-      use to interact with the debugging probe and mcu
-    - We use a general purpose debugger called GDB which we connect to openocd, to perform the actual debugging
-    - Finally, the IDE connects to gdb to control the debugging process and present the results to the user
-- On a nucleo, the debugging probe is actually a second stm mcu (point to it on the board)
-- this chain of processes is how we can actually debug the mcu
+**VERY** lightly cover the debugging pipeline
+
+- while it looks like we are connected to the mcu with usb, in reality we are going through a chain of steps that end
+  with us communicating in a simpler protocol called SWD
+- SWD allows debugging access into the mcu internals
+- There are a few pieces of software we need to run on our computers to connect our ide to the mcu, namely gdb and
+  openocd
+- From there, the computer magically talks to the mcu
+
+[//]: # (I dont like this section, hence why it is commented out)
+
+[//]: # (- One thing that is good to know is how we are actually interacting with the mcu)
+
+[//]: # (- For an mcu, usb is very hard, so we are not actually debugging directly with usb)
+
+[//]: # (- we go through the *pipeline*)
+
+[//]: # (    - MCU supports a hardware protocol specifically for debugging called SWD)
+
+[//]: # (    - This SWD is then routed to a debug probe, which acts as a mediator between computer and mcu connecting the usb and)
+
+[//]: # (      swd busses together)
+
+[//]: # (    - on the computer, openocd conencts to the debug probe connected over usb, and begins hosting a connection we can)
+
+[//]: # (      use to interact with the debugging probe and mcu)
+
+[//]: # (    - We use a general purpose debugger called GDB which we connect to openocd, to perform the actual debugging)
+
+[//]: # (    - Finally, the IDE connects to gdb to control the debugging process and present the results to the user)
+
+[//]: # (- On a nucleo, the debugging probe is actually a second stm mcu &#40;point to it on the board&#41;)
+
+[//]: # (- this chain of processes is how we can actually debug the mcu)
 
 Set up printf:
 
@@ -116,8 +141,8 @@ Set up printf:
 - Debugging capabilities are nice
 - Our debugging probe embedded on the nucleo has a serial port available for this purpose
     - when we say serial, we mean an uart/RS232 port, or the serial port like on an arduino.
-- Our computers cant directly read uart, but we can route it through the debugging probe, which will make its output
-  available over usb
+- to connect the mcu to this serial port for output, we connect it to the uart port on the debug probe
+- the debug probe will forward anything sent on its uart bus over usb to our computer
 - in fact, with clions serial monitor we can see there is a device called stlink already available
 - so, we can use a uart peripheral to output text characters we can read to have a print function
 - to start, enable usart3 on pd8 and 9. On this nucleo model, these pins are conencted to the debug probe's uart pins,
@@ -143,35 +168,101 @@ Do manual text transmission first:
     - now include stdio
     - can now use printf yippee
 
-Back to slides, 
+Back to slides,
 
 ## Slide 10
-- talk about how we actually interact with these peripherals
-- peripherals all have a set of registers that allow us to control their behavior
-- the registers of each peripheral are mapped into the address space of the cpu, so we can access them like any other memory location
-- this means accessing them through pointers to memory locations
-- as an example, the usart3 device we have been using:
-  - it is base located at 0x40004800
-  - each register is an offset into that base, for example these are the first few registers
+
+- Computer theory time!
+- Modern computers follow the von neumann model:
+    - cpu
+    - memory
+        - storage space for data the cpu is working on
+        - there are multiple types that do different things
+        - but to the von neumann model, memory is the data the cpu is operating on
+    - io
+        - without inputs and outputs, the cpu+memory cant really do much (like output its result!)
+        - is how the machine interacts with the world
 
 ## Slide 11
-- as more practical example, we will replicate the led code we made by going directly to the hardware registers, instead of the provided functions
+
+- contains the control circuitry which coordinates every other part of the machine
+- contains the arithmatic and logic units which perform the actual calculations
+- also responsible for moving data around between memories
+- Modern cpus are based on the x86 architecture introduced by the intel 8086 processor in the 1970s
+- Later extensions introduced the 64 bit variant called x64, amd64, or x86_64
+- These kinds of cpus dominate laptop/PC computers, and are large enough for us to see
+- x86 too big, we go smol with arm cortex M
+
+## Slide 12
+
+- Memory stores data for the computer
+- RAM is probably the most familiar type of memory
+    - used for fast access to data the cpu is working on
+    - resets on power loss, so not suitable for long term storage
+- Flash is the same when we refer to flash drive
+    - can be used for long term storage
+    - slower than ram
+    - can be bigger for cheaper
+- In an mcu, we need flash for storing program code, and ram for storing working data
+
+## Slide 13
+
+The memory rabbit hole goes much deeper:
+
+- RAM is actually kinda slow relative to the cpu, so we introduce another memory layer called cache which is like even
+  faster ram, but is very small
+- Tightly coupled memory: Like cache but EVEN FASTER. Fastest type of *memory*
+- CPU Registers: The data fastest accessible to the cpu. literally in the cpu itself. cant get much more direct than
+  this. extremely limited in quantity
+
+## Slide 14
+
+- IO devices in an mcu are called peripherals
+- gpios, uart, usb, spi, i2c, timers, analog sensors, etc
+- going to talk about these more later
+
+## Slide 15
+
+- How do all these things connect to each other?
+- The BUS is a common set of circuity that connects all the parts together
+- Bus masters are things that initiate data transfers between devices, most notably the CPU
+- Bus slaves are things that receive and respond to data sent on the bus, most notably the peripherals
+- The bus structure is complex and is actually composed of multiple smaller busses
+- There are even bus masters besides the cpu for doing other cool things
+- this diagram does NOT need to be understood right now, but it is the bus diagram for the mcus
+
+## Slide 16
+
+- talk about how we actually interact with these peripherals
+- peripherals all have a set of registers that allow us to control their behavior
+- the registers of each peripheral are mapped into the address space of the cpu, so we can access them like any other
+  memory location
+- this means accessing them through pointers to memory locations
+- as an example, the usart3 device we have been using:
+    - it is base located at 0x40004800
+    - each register is an offset into that base, for example these are the first few registers
+
+## Slide 17
+
+- as more practical example, we will replicate the led code we made by going directly to the hardware registers, instead
+  of the HAL functions
 - gpios are organized into groups of 16 into ports
 - each port contains the control registers for its associated gpios
 - to set up a gpio, we need to tell it to be in output mode, and we need to be able to control the output
 - pull up datasheet, section 11.4
-  - scroll through the register list
-  - the ones we need are:
-    - 11.4.1
-      - this register allows us to set the function of the gpio
-      - we can see it organizes each bit in the register into groups of 2
-      - these groups of 2 control the mode for the pin that is connected
-    - 11.4.5 for input
-      - by reading from this register, we can get the value at the pin its connected to
-    - 11.4.6 for output
-      - by writing to this register, we control the output level of the pin
+    - scroll through the register list
+    - the ones we need are:
+        - 11.4.1
+            - this register allows us to set the function of the gpio
+            - we can see it organizes each bit in the register into groups of 2
+            - these groups of 2 control the mode for the pin that is connected
+        - 11.4.5 for input
+            - by reading from this register, we can get the value at the pin its connected to
+        - 11.4.6 for output
+            - by writing to this register, we control the output level of the pin
 
 Back to code:
+
 - Create a new function that gets called before all the random stuff
 - init uart so we can use it for printf
 - init clocks for gpios `__HAL_RCC_GPIOx_CLK_ENABLE()`
